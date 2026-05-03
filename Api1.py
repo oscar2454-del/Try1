@@ -6,7 +6,6 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from bson import ObjectId
 import pandas as pd
 
-# Importaciones de tu configuración local
 from db import collection, db 
 from models import Estudiante
 
@@ -26,7 +25,7 @@ async def home():
     with open("templates/base.html", "r", encoding="utf-8") as f:
         return f.read()
 
-# CRUD Estudiantes
+# --- CRUD Estudiantes ---
 @app.get("/estudiantes")
 async def obtener():
     datos = []
@@ -46,50 +45,75 @@ async def agregar(nombre: str = Form(...)):
 
 @app.delete("/eliminar/{id}")
 async def eliminar(id: str):
-    await collection.delete_one({"_id": ObjectId(id)})
+    # Convierte a ObjectId para MongoDB
+    try:
+        obj_id = ObjectId(id)
+    except:
+        raise HTTPException(status_code=400, detail="ID inválido")
+        
+    await collection.delete_one({"_id": obj_id})
     await db.asistencias.delete_many({"estudiante_id": id})
     return {"mensaje": "borrado"}
 
-# Lógica de Asistencia
+# --- Lógica de Asistencia ---
 @app.post("/asistencia")
 async def registrar_asistencia(estudiante_id: str = Form(...), estado: str = Form(...)):
+    # Se genera la fecha actual automáticamente
     hoy = datetime.now().strftime("%Y-%m-%d")
+
     await db.asistencias.update_one(
         {"estudiante_id": estudiante_id, "fecha": hoy},
-        {"$set": {"estado": estado, "timestamp": datetime.now()}},
+        {"$set": {
+            "estado": estado, 
+            "timestamp": datetime.now()
+        }},
         upsert=True
     )
-    return {"status": "ok"}
+    return {"status": "ok", "fecha": hoy}
 
-# Exportar a Excel
+# --- Exportar a Excel ---
 @app.get("/exportar-excel")
 async def exportar_excel():
+    # 1. Obtener mapeo de nombres (ID -> Nombre)
     est_cursor = collection.find({})
     nombres = {str(e["_id"]): e["nombre"] async for e in est_cursor}
     
+    # 2. Obtener historial de asistencias
     asis_cursor = db.asistencias.find({})
     data = []
     async for a in asis_cursor:
+        est_id = a.get("estudiante_id")
         data.append({
-            "Estudiante": nombres.get(a["estudiante_id"], "Desconocido"),
-            "Fecha": a["fecha"],
-            "Estado": a["estado"].capitalize()
+            "Estudiante": nombres.get(est_id, "Desconocido"),
+            "Fecha": a.get("fecha"),
+            "Estado": a.get("estado", "").capitalize()
         })
     
     if not data:
-        raise HTTPException(status_code=404, detail="No hay datos de asistencia")
+        raise HTTPException(status_code=404, detail="No hay datos de asistencia registrados")
 
+    # 3. Procesar datos con Pandas
     df = pd.DataFrame(data)
-    # Formato de matriz: Alumnos en filas, Fechas en columnas
-    df_pivot = df.pivot(index="Estudiante", columns="Fecha", values="Estado").fillna("-")
+    
+    # Transformar a matriz: Estudiantes en filas, Fechas en columnas
+    # Esto permite ver el historial completo de un vistazo
+    try:
+        df_pivot = df.pivot(index="Estudiante", columns="Fecha", values="Estado").fillna("-")
+    except Exception as e:
+        # En caso de error por datos duplicados el mismo día
+        raise HTTPException(status_code=500, detail="Error al procesar la matriz de asistencia")
 
+    # 4. Generar archivo Excel en memoria
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_pivot.to_excel(writer, sheet_name='Asistencias')
+        df_pivot.to_excel(writer, sheet_name='Reporte_Asistencias')
     
     output.seek(0)
+    
     return StreamingResponse(
         output, 
-        headers={'Content-Disposition': 'attachment; filename="asistencia_clase.xlsx"'},
+        headers={
+            'Content-Disposition': 'attachment; filename="asistencia_clase_completa.xlsx"'
+        },
         media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
