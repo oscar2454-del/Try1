@@ -3,3 +3,4 @@ uvicorn
 motor
 dnspython
 jinja2
+python-multipart
