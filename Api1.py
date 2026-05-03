@@ -3,9 +3,12 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from db import collection
+import os
 
 app = FastAPI()
-templates = Jinja2Templates(directory="templates")
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 #CORS
 app.add_middleware(
@@ -15,11 +18,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-@app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    return templates.TemplateResponse("base.html", {"request": request})
-
+@app.get("/")
+async def home():
+    return {"ok": True}
 
 #Obtener
 @app.get("/estudiantes")
