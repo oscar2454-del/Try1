@@ -18,9 +18,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-@app.get("/")
-async def home():
-    return {"ok": True}
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    return templates.TemplateResponse("base.html", {"request": request})
 
 #Obtener
 @app.get("/estudiantes")
