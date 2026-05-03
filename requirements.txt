@@ -4,3 +4,5 @@ motor
 dnspython
 jinja2
 python-multipart
+pandas
+openpyxl
