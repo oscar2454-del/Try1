@@ -1,7 +1,10 @@
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from db import collection
 from fastapi.responses import FileResponse
+from bson import ObjectId
+
+from db import collection
+from models import Estudiante
 
 app = FastAPI()
 
@@ -13,47 +16,61 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+#HTML
 @app.get("/")
 async def home():
     return FileResponse("templates/base.html")
 
+
 #Obtener
 @app.get("/estudiantes")
-async def obtener_estudiantes():
+async def obtener():
     datos = []
+    cursor = collection.find({}).sort("_id", -1)
 
-    try:
-        cursor = collection.find({}).sort("_id", -1)
+    async for doc in cursor:
+        doc["_id"] = str(doc["_id"])
+        datos.append(doc)
 
-        async for doc in cursor:
-            doc["_id"] = str(doc["_id"])
-            datos.append(doc)
-
-        return datos
-
-    except Exception:
-        return {"error": "Error al obtener datos"}
+    return datos
 
 
 #Agregar
 @app.post("/agregar")
-async def agregar_estudiante(nombre: str = Form(...)):
+async def agregar(nombre: str = Form(...)):
+    estudiante = Estudiante(nombre=nombre.strip())
+
+    result = await collection.insert_one(estudiante.dict())
+
+    return {
+        "id": str(result.inserted_id),
+        "nombre": estudiante.nombre
+    }
+
+
+# Eliminar
+@app.delete("/eliminar/{id}")
+async def eliminar(id: str):
+    result = await collection.delete_one({"_id": ObjectId(id)})
+
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="No encontrado")
+
+    return {"mensaje": "eliminado"}
+
+
+#Editar
+@app.put("/editar/{id}")
+async def editar(id: str, nombre: str = Form(...)):
     nombre = nombre.strip()
 
     if not nombre:
-        return {"error": "Nombre vacío"}
+        raise HTTPException(status_code=400, detail="Nombre vacío")
 
-    if len(nombre) > 50:
-        return {"error": "Nombre demasiado largo"}
+    await collection.update_one(
+        {"_id": ObjectId(id)},
+        {"$set": {"nombre": nombre}}
+    )
 
-    try:
-        result = await collection.insert_one({"nombre": nombre})
-
-        return {
-            "mensaje": "ok",
-            "id": str(result.inserted_id),
-            "nombre": nombre
-        }
-
-    except Exception:
-        return {"error": "Error al guardar"}
+    return {"mensaje": "actualizado"}

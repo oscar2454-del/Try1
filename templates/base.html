@@ -1,116 +1,103 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>Lista de Estudiantes</title>
-    <style>
-        body { font-family: sans-serif; padding: 20px; }
-        .estudiante-card { 
-            border: 1px solid #ccc; 
-            margin: 10px 0; 
-            padding: 10px; 
-            border-radius: 5px;
-        }
-    </style>
+<meta charset="UTF-8">
+<title>Estudiantes PRO</title>
+
+<style>
+body { font-family: sans-serif; padding: 20px; }
+.card {
+    border: 1px solid #ccc;
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 6px;
+}
+button { margin-top: 5px; }
+</style>
 </head>
 <body>
 
-<h1>Panel de Control - Estudiantes</h1>
+<h1>Panel de Estudiantes</h1>
 
-<section>
-    <h2>Estudiantes registrados:</h2>
-    <div id="lista-estudiantes">
-        <p>Cargando...</p>
-    </div>
-</section>
+<input type="text" id="buscar" placeholder="Buscar...">
 
-<form id="form-agregar">
+<div id="lista"></div>
+
+<form id="form">
     <input type="text" id="nombre" placeholder="Nombre" required>
-    <button type="submit">Agregar</button>
+    <button>Agregar</button>
 </form>
 
 <script>
-// 🔄 Cargar estudiantes al iniciar
-async function cargarEstudiantes() {
-    try {
-        const res = await fetch("/estudiantes");
-        const data = await res.json();
+const API = window.location.origin;
 
-        const contenedor = document.getElementById("lista-estudiantes");
-        contenedor.innerHTML = "";
+async function cargar() {
+    const res = await fetch(`${API}/estudiantes`);
+    const data = await res.json();
 
-        if (data.length === 0) {
-            contenedor.innerHTML = "<p>No hay estudiantes.</p>";
-            return;
-        }
+    const lista = document.getElementById("lista");
+    lista.innerHTML = "";
 
-        data.forEach(est => {
-            const div = document.createElement("div");
-            div.className = "estudiante-card";
-            div.innerHTML = `
-                <strong>ID:</strong> ${est._id}<br>
-                <strong>Nombre:</strong> ${est.nombre}
-            `;
-            contenedor.appendChild(div);
-        });
-
-    } catch (error) {
-        console.error("Error:", error);
-    }
-}
-
-cargarEstudiantes();
-
-
-// ➕ Agregar sin recargar
-const form = document.getElementById("form-agregar");
-
-form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const input = document.getElementById("nombre");
-    const nombre = input.value;
-
-    const button = form.querySelector("button");
-    button.disabled = true;
-    button.textContent = "Guardando...";
-
-    try {
-        const res = await fetch("/agregar", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/x-www-form-urlencoded"
-            },
-            body: new URLSearchParams({ nombre })
-        });
-
-        const data = await res.json();
-
-        if (data.error) {
-            alert(data.error);
-            return;
-        }
-
-        const contenedor = document.getElementById("lista-estudiantes");
-
+    data.forEach(est => {
         const div = document.createElement("div");
-        div.className = "estudiante-card";
+        div.className = "card";
+
         div.innerHTML = `
-            <strong>ID:</strong> ${data.id}<br>
-            <strong>Nombre:</strong> ${data.nombre}
+            <strong>${est.nombre}</strong><br>
+            <small>${est._id}</small><br>
+
+            <button onclick="eliminar('${est._id}')">Eliminar</button>
+            <button onclick="editar('${est._id}', '${est.nombre}')">Editar</button>
         `;
 
-        contenedor.prepend(div);
+        lista.appendChild(div);
+    });
+}
 
-        input.value = "";
+async function eliminar(id) {
+    await fetch(`${API}/eliminar/${id}`, { method: "DELETE" });
+    cargar();
+}
 
-    } catch (error) {
-        console.error("Error:", error);
-    } finally {
-        button.disabled = false;
-        button.textContent = "Agregar";
-    }
+async function editar(id, nombreViejo) {
+    const nuevo = prompt("Nuevo nombre:", nombreViejo);
+    if (!nuevo) return;
+
+    await fetch(`${API}/editar/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ nombre: nuevo })
+    });
+
+    cargar();
+}
+
+document.getElementById("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const nombre = document.getElementById("nombre").value;
+
+    await fetch(`${API}/agregar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ nombre })
+    });
+
+    document.getElementById("nombre").value = "";
+    cargar();
 });
+
+//Buscar
+document.getElementById("buscar").addEventListener("input", () => {
+    const texto = document.getElementById("buscar").value.toLowerCase();
+    document.querySelectorAll(".card").forEach(card => {
+        card.style.display = card.textContent.toLowerCase().includes(texto)
+            ? "block"
+            : "none";
+    });
+});
+
+cargar();
 </script>
 
 </body>
