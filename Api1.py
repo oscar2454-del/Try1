@@ -8,7 +8,7 @@ import os
 app = FastAPI()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+templates = Jinja2Templates(directory="templates")
 
 #CORS
 app.add_middleware(
