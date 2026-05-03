@@ -1,104 +1,135 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Estudiantes PRO</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pase de Lista Pro</title>
+    <style>
+        :root { --p: #2ecc71; --t: #f1c40f; --a: #e74c3c; --bg: #f8f9fa; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .app-container { width: 100%; max-width: 600px; background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        h1 { margin: 0 0 5px 0; font-size: 1.5rem; color: #2c3e50; }
+        .fecha { color: #7f8c8d; margin-bottom: 20px; font-weight: 500; }
+        
+        .search-box { width: 100%; padding: 12px; border: 2px solid #eee; border-radius: 8px; margin-bottom: 20px; outline: none; transition: 0.3s; }
+        .search-box:focus { border-color: #3498db; }
 
-<style>
-body { font-family: sans-serif; padding: 20px; }
-.card {
-    border: 1px solid #ccc;
-    padding: 10px;
-    margin: 10px 0;
-    border-radius: 6px;
-}
-button { margin-top: 5px; }
-</style>
+        .estudiante-item { 
+            display: flex; justify-content: space-between; align-items: center; 
+            padding: 12px 0; border-bottom: 1px solid #f1f1f1;
+        }
+        .info span { display: block; font-weight: 600; color: #34495e; }
+        .info small { color: #bdc3c7; cursor: pointer; }
+        .info small:hover { color: var(--a); }
+
+        .btn-group { display: flex; gap: 8px; }
+        .btn-asistencia { 
+            border: 2px solid #eee; background: white; padding: 8px 12px; 
+            border-radius: 6px; cursor: pointer; font-weight: bold; color: #95a5a6; transition: 0.2s;
+        }
+
+        /* Estados Activos */
+        .btn-asistencia.active-p { background: var(--p); border-color: var(--p); color: white; }
+        .btn-asistencia.active-t { background: var(--t); border-color: var(--t); color: white; }
+        .btn-asistencia.active-a { background: var(--a); border-color: var(--a); color: white; }
+
+        #form-agregar { display: flex; gap: 10px; margin-top: 30px; background: #fdfdfd; padding: 15px; border-radius: 10px; border: 1px dashed #ccc; }
+        #form-agregar input { flex: 1; border: 1px solid #ddd; padding: 8px; border-radius: 5px; }
+        #form-agregar button { background: #2c3e50; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; }
+    </style>
 </head>
 <body>
 
-<h1>Panel de Estudiantes</h1>
+<div class="app-container">
+    <h1>Control de Clase</h1>
+    <div class="fecha" id="fecha-actual">Cargando fecha...</div>
 
-<input type="text" id="buscar" placeholder="Buscar...">
+    <input type="text" id="buscar" class="search-box" placeholder="Buscar alumno...">
 
-<div id="lista"></div>
+    <div id="lista-alumnos">
 
-<form id="form">
-    <input type="text" id="nombre" placeholder="Nombre" required>
-    <button>Agregar</button>
-</form>
+    </div>
+
+    <form id="form-agregar">
+        <input type="text" id="nuevo-nombre" placeholder="Nombre completo..." required>
+        <button type="submit">Añadir</button>
+    </form>
+</div>
 
 <script>
-const API = window.location.origin;
+    const API = window.location.origin;
 
-async function cargar() {
-    const res = await fetch(`${API}/estudiantes`);
-    const data = await res.json();
+    const hoy = new Date();
+    document.getElementById('fecha-actual').innerText = hoy.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-    const lista = document.getElementById("lista");
-    lista.innerHTML = "";
+    async function cargarEstudiantes() {
+        const res = await fetch(`${API}/estudiantes`);
+        const estudiantes = await res.json();
+        const contenedor = document.getElementById('lista-alumnos');
+        contenedor.innerHTML = '';
 
-    data.forEach(est => {
-        const div = document.createElement("div");
-        div.className = "card";
+        estudiantes.forEach(est => {
+            const div = document.createElement('div');
+            div.className = 'estudiante-item';
+            div.innerHTML = `
+                <div class="info">
+                    <span>${est.nombre}</span>
+                    <small onclick="eliminar('${est._id}')">Eliminar</small>
+                </div>
+                <div class="btn-group">
+                    <button class="btn-asistencia" onclick="marcar('${est._id}', 'presente', this)">P</button>
+                    <button class="btn-asistencia" onclick="marcar('${est._id}', 'tarde', this)">T</button>
+                    <button class="btn-asistencia" onclick="marcar('${est._id}', 'ausente', this)">A</button>
+                </div>
+            `;
+            contenedor.appendChild(div);
+        });
+    }
 
-        div.innerHTML = `
-            <strong>${est.nombre}</strong><br>
-            <small>${est._id}</small><br>
+    async function marcar(id, estado, btn) {
 
-            <button onclick="eliminar('${est._id}')">Eliminar</button>
-            <button onclick="editar('${est._id}', '${est.nombre}')">Editar</button>
-        `;
+        const botones = btn.parentElement.querySelectorAll('.btn-asistencia');
+        botones.forEach(b => {
+            b.classList.remove('active-p', 'active-t', 'active-a');
+        });
+        
+        const letra = estado.charAt(0);
+        btn.classList.add(`active-${letra}`);
 
-        lista.appendChild(div);
+        await fetch(`${API}/asistencia`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: new URLSearchParams({ 'estudiante_id': id, 'estado': estado })
+        });
+    }
+
+    async function eliminar(id) {
+        if (!confirm("¿Eliminar alumno y su historial?")) return;
+        await fetch(`${API}/eliminar/${id}`, { method: 'DELETE' });
+        cargarEstudiantes();
+    }
+
+    document.getElementById('form-agregar').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const nombre = document.getElementById('nuevo-nombre').value;
+        await fetch(`${API}/agregar`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: new URLSearchParams({ 'nombre': nombre })
+        });
+        document.getElementById('nuevo-nombre').value = '';
+        cargarEstudiantes();
     });
-}
 
-async function eliminar(id) {
-    await fetch(`${API}/eliminar/${id}`, { method: "DELETE" });
-    cargar();
-}
-
-async function editar(id, nombreViejo) {
-    const nuevo = prompt("Nuevo nombre:", nombreViejo);
-    if (!nuevo) return;
-
-    await fetch(`${API}/editar/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ nombre: nuevo })
+    document.getElementById('buscar').addEventListener('input', (e) => {
+        const busqueda = e.target.value.toLowerCase();
+        document.querySelectorAll('.estudiante-item').forEach(item => {
+            const nombre = item.querySelector('span').innerText.toLowerCase();
+            item.style.display = nombre.includes(busqueda) ? 'flex' : 'none';
+        });
     });
 
-    cargar();
-}
-
-document.getElementById("form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const nombre = document.getElementById("nombre").value;
-
-    await fetch(`${API}/agregar`, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ nombre })
-    });
-
-    document.getElementById("nombre").value = "";
-    cargar();
-});
-
-//Buscar
-document.getElementById("buscar").addEventListener("input", () => {
-    const texto = document.getElementById("buscar").value.toLowerCase();
-    document.querySelectorAll(".card").forEach(card => {
-        card.style.display = card.textContent.toLowerCase().includes(texto)
-            ? "block"
-            : "none";
-    });
-});
-
-cargar();
+    cargarEstudiantes();
 </script>
-
 </body>
 </html>
