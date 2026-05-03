@@ -15,52 +15,103 @@
 </head>
 <body>
 
-    <h1>Panel de Control - Estudiantes</h1>
-    
-    <section>
-        <h2>Estudiantes registrados en MongoDB:</h2>
-        <div id="lista-estudiantes">
-            <p>Cargando datos desde la API...</p>
-        </div>
-    </section>
+<h1>Panel de Control - Estudiantes</h1>
 
-    <form action="/agregar" method="post">
-        <input type="text" name="nombre" placeholder="Nombre" required>
-        <button type="submit">Agregar</button>
-    </form>
+<section>
+    <h2>Estudiantes registrados:</h2>
+    <div id="lista-estudiantes">
+        <p>Cargando...</p>
+    </div>
+</section>
 
-    <script>
-        async function cargarEstudiantes() {
-            try {
-                const res = await fetch("/estudiantes");
-                const data = await res.json();
+<form id="form-agregar">
+    <input type="text" id="nombre" placeholder="Nombre" required>
+    <button type="submit">Agregar</button>
+</form>
 
-                const contenedor = document.getElementById("lista-estudiantes");
-                contenedor.innerHTML = "";
+<script>
+// 🔄 Cargar estudiantes al iniciar
+async function cargarEstudiantes() {
+    try {
+        const res = await fetch("/estudiantes");
+        const data = await res.json();
 
-                if (data.length === 0) {
-                    contenedor.innerHTML = "<p>No hay estudiantes en la base de datos.</p>";
-                    return;
-                }
+        const contenedor = document.getElementById("lista-estudiantes");
+        contenedor.innerHTML = "";
 
-                data.forEach(est => {
-                    const div = document.createElement("div");
-                    div.className = "estudiante-card";
-                    
-                    div.innerHTML = `
-                        <strong>ID:</strong> ${est._id}<br>
-                        <strong>Datos:</strong> ${JSON.stringify(est)}
-                    `;
-                    contenedor.appendChild(div);
-                });
-
-            } catch (error) {
-                console.error("Error al conectar con la API:", error);
-                document.getElementById("lista-estudiantes").innerHTML = "Error al cargar datos.";
-            }
+        if (data.length === 0) {
+            contenedor.innerHTML = "<p>No hay estudiantes.</p>";
+            return;
         }
 
-        cargarEstudiantes();
-    </script>
+        data.forEach(est => {
+            const div = document.createElement("div");
+            div.className = "estudiante-card";
+            div.innerHTML = `
+                <strong>ID:</strong> ${est._id}<br>
+                <strong>Nombre:</strong> ${est.nombre}
+            `;
+            contenedor.appendChild(div);
+        });
+
+    } catch (error) {
+        console.error("Error:", error);
+    }
+}
+
+cargarEstudiantes();
+
+
+// ➕ Agregar sin recargar
+const form = document.getElementById("form-agregar");
+
+form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const input = document.getElementById("nombre");
+    const nombre = input.value;
+
+    const button = form.querySelector("button");
+    button.disabled = true;
+    button.textContent = "Guardando...";
+
+    try {
+        const res = await fetch("/agregar", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: new URLSearchParams({ nombre })
+        });
+
+        const data = await res.json();
+
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+
+        const contenedor = document.getElementById("lista-estudiantes");
+
+        const div = document.createElement("div");
+        div.className = "estudiante-card";
+        div.innerHTML = `
+            <strong>ID:</strong> ${data.id}<br>
+            <strong>Nombre:</strong> ${data.nombre}
+        `;
+
+        contenedor.prepend(div);
+
+        input.value = "";
+
+    } catch (error) {
+        console.error("Error:", error);
+    } finally {
+        button.disabled = false;
+        button.textContent = "Agregar";
+    }
+});
+</script>
+
 </body>
 </html>
